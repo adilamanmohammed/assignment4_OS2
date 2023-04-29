@@ -36,7 +36,7 @@ int main(){
 
 	while(1){
 		printf("Client: \t");
-		scanf("%s", &buffer[0]);
+		gets(buffer);
 		send(clientSocket, buffer, strlen(buffer), 0);
 
 		if(strcmp(buffer, ":exit") == 0){
