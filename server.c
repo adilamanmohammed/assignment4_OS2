@@ -8,110 +8,109 @@
 #include <netinet/in.h>
 #include <arpa/inet.h>
 
-#define PORT 8081
-#define MAX_THREADS 3
-#define MAX_BUFFER_SIZE 1024
+#define PORT 1051
+#define MAX 3
 
+FILE* s_file;
 pthread_mutex_t mutex;
-FILE* shared_file;
 
-void* handle_connection(void* arg) {
-    int client_socket = *((int*) arg);
-    char buffer[MAX_BUFFER_SIZE];
-    ssize_t bytes_received = recv(client_socket, buffer, MAX_BUFFER_SIZE, 0);
-    if (bytes_received < 0) {
-        perror("recv");
-        close(client_socket);
+
+void* connection(void* input) {
+    int c_sock = *((int*) input);
+    char buff_var[1024];
+    ssize_t bytes_recv = recv(c_sock, buff_var, 1024, 0);
+    if (bytes_recv < 0) {
+        close(c_sock);
         pthread_exit(NULL);
     }
-    buffer[bytes_received] = '\0';
+
+    buff_var[bytes_recv] = '\0';
 
     pthread_mutex_lock(&mutex);
-    fprintf(shared_file, "%s\n", buffer);
-    fflush(shared_file);
+    fprintf(s_file, "%s\n", buff_var);
+    fflush(s_file);
     pthread_mutex_unlock(&mutex);
 
     sleep(2);
 
     pthread_mutex_lock(&mutex);
-    fseek(shared_file, 0, SEEK_SET);
-    while (fgets(buffer, MAX_BUFFER_SIZE, shared_file) != NULL) {
-        if (send(client_socket, buffer, strlen(buffer), 0) < 0) {
-            perror("send");
-            close(client_socket);
-            pthread_mutex_unlock(&mutex);
+    fseek(s_file, 0, SEEK_SET);
+    while (fgets(buff_var, 1024, s_file) != NULL) {
+        if (send(c_sock, buff_var, strlen(buff_var), 0) < 0) {
+            close(c_sock);
             pthread_exit(NULL);
         }
     }
     pthread_mutex_unlock(&mutex);
 
-    close(client_socket);
+    close(c_sock);
     pthread_exit(NULL);
 }
 
 int main() {
-    int server_socket, client_socket;
-    struct sockaddr_in server_address, client_address;
-    socklen_t client_address_length;
-    pthread_t threads[MAX_THREADS];
+    int s_sock, c_sock;
+    struct sockaddr_in s_addr, c_addr;
+    socklen_t length;
+    pthread_t threads[MAX];
 
-    shared_file = fopen("shared.txt", "a+");
-    if (shared_file == NULL) {
-        perror("fopen");
-        exit(EXIT_FAILURE);
+    s_file = fopen("shared.txt", "a+");
+    if (s_file == NULL) {
+        perror("fopen error");
+        exit(1);
     }
 
     if (pthread_mutex_init(&mutex, NULL) != 0) {
-        perror("pthread_mutex_init");
-        exit(EXIT_FAILURE);
+        perror("pthread_mutex_init error");
+        exit(1);
     }
 
-    server_socket = socket(AF_INET, SOCK_STREAM, 0);
-    if (server_socket < 0) {
-        perror("socket");
-        exit(EXIT_FAILURE);
+    s_sock = socket(AF_INET, SOCK_STREAM, 0);
+    if (s_sock < 0) {
+        perror("socket error");
+        exit(1);
     }
 
-    memset(&server_address, 0, sizeof(server_address));
-    server_address.sin_family = AF_INET;
-    server_address.sin_addr.s_addr = INADDR_ANY;
-    server_address.sin_port = htons(PORT);
+    memset(&s_addr, 0, sizeof(s_addr));
+    s_addr.sin_family = AF_INET;
+    s_addr.sin_addr.s_addr = INADDR_ANY;
+    s_addr.sin_port = htons(PORT);
 
-    if (bind(server_socket, (struct sockaddr*) &server_address, sizeof(server_address)) < 0) {
-        perror("bind");
-        exit(EXIT_FAILURE);
+    if (bind(s_sock, (struct sockaddr*) &s_addr, sizeof(s_addr)) < 0) {
+        perror("binding error");
+        exit(1);
     }
 
-    if (listen(server_socket, MAX_THREADS) < 0) {
-        perror("listen");
-        exit(EXIT_FAILURE);
+    if (listen(s_sock, MAX) < 0) {
+        perror("listen error");
+        exit(1);
     }
 
-    for (int i = 0; i < MAX_THREADS; i++) {
-        printf("Waiting for connection...\n");
-        client_address_length = sizeof(client_address);
-        client_socket = accept(server_socket, (struct sockaddr*) &client_address, &client_address_length);
-        if (client_socket < 0) {
+    printf("Server started:\n");
+    for (int i = 0; i < MAX; i++) {
+        printf("Waiting for connections to connect:\n");
+        length = sizeof(c_addr);
+        c_sock = accept(s_sock, (struct sockaddr*) &c_addr, &length);
+        if (c_sock < 0) {
             perror("accept");
-            exit(EXIT_FAILURE);
+            exit(1);
         }
-        printf("Connection accepted from %s:%d\n", inet_ntoa(client_address.sin_addr), ntohs(client_address.sin_port));
-        if (pthread_create(&threads[i], NULL, handle_connection, (void*) &client_socket) != 0) {
-            perror("pthread_create");
-            exit(EXIT_FAILURE);
+        printf("Connection from %s:%d Accepted \n", inet_ntoa(c_addr.sin_addr), ntohs(c_addr.sin_port));
+        if (pthread_create(&threads[i], NULL, connection, (void*) &c_sock) != 0) {
+            perror("Thread creation error");
+            exit(1);
         }
     }
 
-    for (int i = 0; i < MAX_THREADS; i++) {
+    for (int i = 0; i < MAX; i++) {
         if (pthread_join(threads[i], NULL) != 0) {
-            perror("pthread_join");
-            exit(EXIT_FAILURE);
+            perror("Thread joining error");
+            exit(1);
         }
     }
 
-    fclose(shared_file);
+    fclose(s_file);
     pthread_mutex_destroy(&mutex);
-    close(server_socket);
-    exit(EXIT_SUCCESS);
+    close(s_sock);
+    exit(1);
 }
 
