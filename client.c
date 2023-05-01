@@ -22,7 +22,7 @@ memset(&serv_addr, '0', sizeof(serv_addr));
 serv_addr.sin_family = AF_INET;
 serv_addr.sin_port = htons(PORT);
 // Convert IPv4 and IPv6 addresses from text to binary form
-if(inet_pton(AF_INET, "10.203.72.25", &serv_addr.sin_addr)<=0)
+if(inet_pton(AF_INET, "10.203.72.30", &serv_addr.sin_addr)<=0)
 {
 printf("\nInvalid address/ Address not supported \n");
 return -1;
