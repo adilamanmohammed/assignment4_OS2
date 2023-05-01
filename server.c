@@ -12,18 +12,19 @@
 #define MAX 3
 
 FILE* s_file;
-pthread_mutex_t mutex;
+pthread_mutex_t mutex, mutex2;
 
 
 void* connection(void* input) {
     int c_sock = *((int*) input);
     char buff_var[1024];
     ssize_t bytes_recv = recv(c_sock, buff_var, 1024, 0);
+    printf(" The message received : %s\n",buff_var);
     if (bytes_recv < 0) {
         close(c_sock);
         pthread_exit(NULL);
     }
-
+    
     buff_var[bytes_recv] = '\0';
 
     pthread_mutex_lock(&mutex);
@@ -85,9 +86,9 @@ int main() {
         exit(1);
     }
 
-    printf("Server started:\n");
+    printf("Server started waiting for clients to connect...\n");
     for (int i = 0; i < MAX; i++) {
-        printf("Waiting for connections to connect:\n");
+        //printf("Waiting for connections to connect:\n");
         length = sizeof(c_addr);
         c_sock = accept(s_sock, (struct sockaddr*) &c_addr, &length);
         if (c_sock < 0) {
@@ -95,10 +96,13 @@ int main() {
             exit(1);
         }
         printf("Connection from %s:%d Accepted \n", inet_ntoa(c_addr.sin_addr), ntohs(c_addr.sin_port));
+        pthread_mutex_lock(&mutex2);
         if (pthread_create(&threads[i], NULL, connection, (void*) &c_sock) != 0) {
             perror("Thread creation error");
             exit(1);
         }
+        pthread_mutex_unlock(&mutex2);
+
     }
 
     for (int i = 0; i < MAX; i++) {
