@@ -8,7 +8,7 @@
 #include <netinet/in.h>
 #include <arpa/inet.h>
 
-#define PORT 1051
+#define PORT 1058
 #define MAX 3
 
 FILE* s_file;
